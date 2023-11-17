@@ -52,7 +52,7 @@ if (process.env.MAX_CONCURRENCY) {
     });
 
     // Define a task
-    cluster.task(async ({ page, data: { url, headers } }) => {
+    cluster.task(async ({ page, data: { url, headers, options } }) => {
         await page.setRequestInterception(true);
         page.on('request', interceptedRequest => {
             if (
@@ -68,7 +68,8 @@ if (process.env.MAX_CONCURRENCY) {
                 await page.setExtraHTTPHeaders({ [name]: value });
             }
         }
-        const response = await page.goto(url, { timeout: 60000, waitUntil: 'networkidle2' });
+        const timeoutValue = options && options.timeout !== undefined ? options.timeout : 60000;
+        const response = await page.goto(url, { timeout: timeoutValue, waitUntil: 'networkidle2' });
         const status_code = response.status()
         // const pageBody = await page.evaluate(() => document.body.innerHTML);
         const finalUrl = page.url();
@@ -86,14 +87,14 @@ if (process.env.MAX_CONCURRENCY) {
 
     // Define a route for receiving URLs via POST requests
     app.post('/render', async (req, res) => {
-        const { url, headers } = req.body;
+        const { url, headers, options } = req.body;
 
         if (!url) {
             return res.status(400).json({ error: 'URL parameter is required.' });
         }
 
         try {
-            const result = await cluster.execute({ url, headers });
+            const result = await cluster.execute({ url, headers, options });
             res.status(200).json(result);
         } catch (err) {
             errorCount++;
