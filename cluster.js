@@ -41,7 +41,7 @@ if (process.env.CHROME_EXECUTABLE_PATH) {
 let max_concurrency = 2;
 if (process.env.MAX_CONCURRENCY) {
     max_concurrency = parseInt(process.env.MAX_CONCURRENCY, 10);
-  };
+};
 
 (async () => {
     // Create a cluster with N workers
@@ -52,14 +52,23 @@ if (process.env.MAX_CONCURRENCY) {
     });
 
     // Define a task
-    cluster.task(async ({ page, data: {url, headers} }) => {
+    cluster.task(async ({ page, data: { url, headers } }) => {
+        await page.setRequestInterception(true);
+        page.on('request', interceptedRequest => {
+            if (
+                interceptedRequest.url().endsWith('.png') ||
+                interceptedRequest.url().endsWith('.jpg')
+            )
+                interceptedRequest.abort();
+            else interceptedRequest.continue();
+        });
         const startTime = Date.now();
         if (headers) {
             for (const [name, value] of Object.entries(headers)) {
                 await page.setExtraHTTPHeaders({ [name]: value });
             }
         }
-        const response = await page.goto(url, {timeout: 60000});
+        const response = await page.goto(url, { timeout: 60000, waitUntil: 'networkidle2' });
         const status_code = response.status()
         // const pageBody = await page.evaluate(() => document.body.innerHTML);
         const finalUrl = page.url();
@@ -67,12 +76,12 @@ if (process.env.MAX_CONCURRENCY) {
         const endTime = Date.now();
         const loadTime = endTime - startTime;
         let url_string = "'" + url + "'"
-        if(finalUrl != url)
+        if (finalUrl != url)
             url_string = "'" + url + "' -> '" + finalUrl + "'"
-        tpl = `[DEBUG] Fetched ${url_string} status: ${status_code} (${loadTime/1000}s)`
+        tpl = `[DEBUG] Fetched ${url_string} status: ${status_code} (${loadTime / 1000}s)`
         console.log(tpl)
         servedRequests++;
-        return {page: pageBody, status: status_code, headers: response.headers()};
+        return { page: pageBody, status: status_code, headers: response.headers() };
     });
 
     // Define a route for receiving URLs via POST requests
@@ -84,7 +93,7 @@ if (process.env.MAX_CONCURRENCY) {
         }
 
         try {
-            const result = await cluster.execute({url, headers});
+            const result = await cluster.execute({ url, headers });
             res.status(200).json(result);
         } catch (err) {
             errorCount++;
