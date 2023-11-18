@@ -69,11 +69,15 @@ if (process.env.MAX_CONCURRENCY) {
             }
         }
         const timeoutValue = options && options.timeout !== undefined ? options.timeout : 60000;
-        const response = await page.goto(url, { timeout: timeoutValue, waitUntil: 'networkidle2' });
+        const waitForSelector = options?.waitForSelector || undefined;
+        const waitUntil = options?.waitUntil || 'networkidle2';
+
+        const response = await page.goto(url, { timeout: timeoutValue, waitUntil: waitUntil });
         const status_code = response.status()
-        // const pageBody = await page.evaluate(() => document.body.innerHTML);
         const finalUrl = page.url();
-        const pageBody = await page.content()
+        const pageBody = waitForSelector ? await page.waitForSelector(waitForSelector).then(() => {
+            return page.content();
+        }) : await page.content();;
         const endTime = Date.now();
         const loadTime = endTime - startTime;
         let url_string = "'" + url + "'"
